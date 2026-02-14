@@ -89,8 +89,8 @@ Each conversation view shows metadata at the top: the Claude model used (e.g. `c
 ## Quick Start
 
 ```bash
-git clone https://github.com/bingquanzhao/claude-history-show.git
-cd claude-history-show
+git clone https://github.com/bingquanzhao/claude-history-viewer.git
+cd claude-history-viewer
 
 npm install
 npm run dev

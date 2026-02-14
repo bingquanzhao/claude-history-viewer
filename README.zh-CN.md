@@ -89,8 +89,8 @@ Claude 的扩展思考块以可折叠区域渲染 —— 默认折叠并显示�
 ## 快速开始
 
 ```bash
-git clone https://github.com/bingquanzhao/claude-history-show.git
-cd claude-history-show
+git clone https://github.com/bingquanzhao/claude-history-viewer.git
+cd claude-history-viewer
 
 npm install
 npm run dev
