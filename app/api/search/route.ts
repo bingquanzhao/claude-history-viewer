@@ -11,56 +11,36 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q")?.toLowerCase().trim();
+  const mode = searchParams.get("mode") || "fts";
 
   if (!query || query.length < 2) {
     return NextResponse.json({ results: [] });
   }
 
   try {
-    const results = await searchAllSessions(query);
-    return NextResponse.json({ results: results.slice(0, 50) });
+    // Use the prebuilt local SQLite index instead of rescanning multi-GB JSONL.
+    const modes = mode === "both" ? ["fts", "semantic"] : [mode];
+    const payloads = await Promise.all(modes.map(async (m) => {
+      const upstream = await fetch(`http://127.0.0.1:8765/api/search?q=${encodeURIComponent(query)}&mode=${m}&limit=50`, { cache: "no-store" });
+      return upstream.json();
+    }));
+    const data = { results: payloads.flatMap((p) => p.results || []) };
+    const results: SearchResult[] = (data.results || []).map((hit: any) => ({
+      sessionId: hit.chat_id,
+      projectName: hit.title || hit.worktree || hit.source_type || "Claude",
+      projectDirName: hit.worktree || hit.source_type || "",
+      messageId: hit.message_id || String(hit.line_no || ""),
+      lineNo: hit.line_no,
+      role: hit.role,
+      snippet: truncate(hit.text || "", 350),
+      sessionContext: hit.title || "",
+      timestamp: hit.timestamp,
+    }));
+    return NextResponse.json({ results });
   } catch (error) {
     console.error("Search error:", error);
     return NextResponse.json({ error: "Search failed" }, { status: 500 });
   }
-}
-
-async function searchAllSessions(query: string): Promise<SearchResult[]> {
-  if (!fs.existsSync(PROJECTS_DIR)) return [];
-
-  const results: SearchResult[] = [];
-  const projectDirs = fs.readdirSync(PROJECTS_DIR).filter((name) => {
-    const fullPath = path.join(PROJECTS_DIR, name);
-    return fs.statSync(fullPath).isDirectory();
-  });
-
-  for (const dirName of projectDirs) {
-    const projectPath = path.join(PROJECTS_DIR, dirName);
-    const files = fs
-      .readdirSync(projectPath)
-      .filter((f) => f.endsWith(".jsonl"));
-
-    const projectDisplayName = formatProjectName(dirName).toLowerCase();
-    const projectMatches = projectDisplayName.includes(query);
-
-    for (const file of files) {
-      const sessionId = file.replace(".jsonl", "");
-      const filePath = path.join(projectPath, file);
-
-      const sessionResults = await searchSession(
-        filePath,
-        sessionId,
-        dirName,
-        query,
-        projectMatches
-      );
-      results.push(...sessionResults);
-
-      if (results.length >= 50) return results;
-    }
-  }
-
-  return results;
 }
 
 function extractText(

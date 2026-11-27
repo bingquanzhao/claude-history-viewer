@@ -61,13 +61,13 @@ function highlightMatch(text: string, query: string): React.ReactNode[] {
 
 export default function SearchDialog({ open, onClose }: SearchDialogProps) {
   const [query, setQuery] = useState("");
+  const [mode, setMode] = useState<"fts" | "semantic" | "both">("fts");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const debounceRef = useRef<NodeJS.Timeout>(undefined);
 
   // Flatten grouped results into an ordered list for keyboard nav
   const grouped = groupByProject(results);
@@ -136,7 +136,7 @@ export default function SearchDialog({ open, onClose }: SearchDialogProps) {
     }
     setLoading(true);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&mode=${mode}`);
       const data = await res.json();
       setResults(data.results || []);
     } catch {
@@ -144,19 +144,20 @@ export default function SearchDialog({ open, onClose }: SearchDialogProps) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [mode]);
 
-  const handleInput = (value: string) => {
-    setQuery(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => search(value), 300);
+  const handleInput = (value: string) => setQuery(value);
+
+  const submitSearch = (event?: React.FormEvent) => {
+    event?.preventDefault();
+    void search(query);
   };
 
   const handleSelect = useCallback(
     (result: SearchResult) => {
       onClose();
       router.push(
-        `/project/${encodeURIComponent(result.projectDirName)}/session/${result.sessionId}`
+        `/project/${encodeURIComponent(result.projectDirName)}/session/${result.sessionId}?line=${encodeURIComponent((result as SearchResult & { lineNo?: number }).lineNo || "")}`
       );
     },
     [onClose, router]
@@ -178,7 +179,7 @@ export default function SearchDialog({ open, onClose }: SearchDialogProps) {
       {/* Dialog */}
       <div className="relative w-full max-w-3xl mx-4 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl overflow-hidden">
         {/* Search input */}
-        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-zinc-800">
+        <form onSubmit={submitSearch} className="flex items-center gap-3 px-5 py-3.5 border-b border-zinc-800">
           <Search className="w-4 h-4 text-zinc-500 shrink-0" />
           <input
             ref={inputRef}
@@ -188,6 +189,14 @@ export default function SearchDialog({ open, onClose }: SearchDialogProps) {
             placeholder="Search conversations…"
             className="flex-1 bg-transparent text-sm text-zinc-200 placeholder:text-zinc-500 outline-none"
           />
+          <select value={mode} onChange={(e) => setMode(e.target.value as typeof mode)} className="bg-zinc-800 text-xs text-zinc-300 border border-zinc-700 rounded px-2 py-1 outline-none">
+            <option value="fts">Точный</option>
+            <option value="semantic">Контекстный</option>
+            <option value="both">Оба</option>
+          </select>
+          <button type="submit" disabled={loading || query.trim().length < 2} className="inline-flex items-center gap-1.5 rounded-md bg-violet-600 px-2.5 py-1.5 text-xs text-white disabled:opacity-40 hover:bg-violet-500">
+            Искать <Search className="w-3.5 h-3.5" />
+          </button>
           {loading && (
             <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
           )}
@@ -197,7 +206,7 @@ export default function SearchDialog({ open, onClose }: SearchDialogProps) {
           >
             <X className="w-4 h-4 text-zinc-500" />
           </button>
-        </div>
+        </form>
 
         {/* Results */}
         <div ref={listRef} className="max-h-[60vh] overflow-y-auto">

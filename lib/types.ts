@@ -219,4 +219,5 @@ export interface SearchResult {
   snippet: string;
   sessionContext: string;
   timestamp?: string;
+  lineNo?: number;
 }
