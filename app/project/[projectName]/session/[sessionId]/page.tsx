@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
-import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import ConversationView from "@/components/conversation/ConversationView";
 import SearchDialog from "@/components/search/SearchDialog";
@@ -32,7 +31,6 @@ export default function SessionPage({ params }: PageProps) {
 
   return (
     <>
-      <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Header
           projectName={decodeURIComponent(projectName)}

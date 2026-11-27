@@ -8,7 +8,13 @@ import type { Project, SessionMeta } from "@/lib/types";
 /**
  * Scan ~/.claude/projects/ and discover all projects and their sessions.
  */
+let cachedProjects: Project[] | null = null;
+let cacheTime = 0;
+
 export async function scanProjects(): Promise<Project[]> {
+  // Project metadata changes much less often than the UI polls it. Avoid rescanning
+  // every JSONL file on each sidebar request; full transcripts stay lazy-loaded.
+  if (cachedProjects && Date.now() - cacheTime < 30_000) return cachedProjects;
   if (!fs.existsSync(PROJECTS_DIR)) {
     return [];
   }
@@ -47,6 +53,8 @@ export async function scanProjects(): Promise<Project[]> {
       new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime()
   );
 
+  cachedProjects = projects;
+  cacheTime = Date.now();
   return projects;
 }
 
@@ -97,17 +105,15 @@ async function scanSessions(
       const subagentsDir = path.join(projectPath, sessionId, "subagents");
       const hasSubagents = fs.existsSync(subagentsDir);
 
-      // Count lines for rough message count
-      const content = fs.readFileSync(filePath, "utf-8");
-      const lineCount = content.split("\n").filter((l) => l.trim()).length;
-
       sessions.push({
         id: sessionId,
         projectName,
         filePath,
         timestamp: firstUserEntry?.timestamp || stat.birthtime.toISOString(),
         lastActive: stat.mtime.toISOString(),
-        messageCount: lineCount,
+        // Exact count would require reading the whole transcript. Keep the UI fast;
+        // the conversation view parses the full file only when opened.
+        messageCount: 0,
         firstUserMessage,
         hasSubagents,
       });
